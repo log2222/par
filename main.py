@@ -8,8 +8,7 @@ device = "127.0.0.1:5555"
 # Координаты и шаги
 start_x = 250
 start_y = 400
-click_step_first = 150
-click_step_after = 100
+click_step = 100
 final_click = (1925, 1369)
 
 # Имя временного файла для анализа
@@ -85,76 +84,69 @@ for i in range(68):
         print("Warning: Не удалось создать первый скриншот.")
 
     is_in_fine_search_mode = False
+    current_y = start_y
 
     while True:
-        if not is_in_fine_search_mode:
-            print("\n--- Начинаем широкий поиск ---")
-            green_found = False
-            
-            for y in range(start_y, 1350, click_step_first):
-                click(start_x, y)
-                take_screenshot_for_analysis()
+        green_found = False
+        red_found = False
 
-                if has_green_area():
-                    print("Найдена зеленая область!")
-                    green_screenshot_name = f"2_green_found_run_{i + 1}.png"
-                    if os.path.exists(TEMP_SCREEN_FILE):
-                        os.replace(TEMP_SCREEN_FILE, green_screenshot_name)
-                        print(f"Сохранен постоянный скриншот: {green_screenshot_name}")
-                    
-                    click(final_click[0], final_click[1])
-                    green_found = True
-                    break
-
-                red_y = red_bottom_y()
-                if red_y is not None:
-                    print(f"Найден красный фон. Нижняя граница Y={red_y}.")
-                    scroll_down()
-                    is_in_fine_search_mode = True
-                    break
-            
-            if green_found:
-                print(f"--- ЗАВЕРШЕНИЕ ВЫПОЛНЕНИЯ #{i + 1}/10 (найден зеленый фон) ---")
-                break # Выход из while True для текущего выполнения
-
-            if not is_in_fine_search_mode:
-                print("Широкий поиск не дал результатов, скроллим.")
-                scroll_down()
-
+        # Определяем начальную Y координату для поиска
         if is_in_fine_search_mode:
             print("\n--- Начинаем точный поиск после красного фона ---")
             take_screenshot_for_analysis()
             red_y = red_bottom_y()
-            
-            start_fine_y = red_y + 100 if red_y is not None else start_y
+            current_y = red_y + click_step if red_y is not None else start_y
             if red_y is not None:
-                 print(f"Красный фон найден на Y={red_y}. Начинаем поиск с Y={start_fine_y}")
+                print(f"Красный фон найден на Y={red_y}. Начинаем поиск с Y={current_y}")
             else:
-                 print(f"Красный фон не найден после скролла. Начинаем поиск с Y={start_fine_y}")
+                print(f"Красный фон не найден после скролла. Начинаем поиск с Y={current_y}")
+        else:
+            print("\n--- Начинаем широкий поиск ---")
+            current_y = start_y
 
-            green_found = False
-            for y in range(start_fine_y, 1350, click_step_after):
-                click(start_x, y)
-                take_screenshot_for_analysis()
+        # Основной цикл поиска на текущем экране
+        while current_y < 1350:
+            click(start_x, current_y)
+            take_screenshot_for_analysis()
 
-                if has_green_area():
-                    print("Найдена зеленая область!")
-                    green_screenshot_name = f"2_green_found_run_{i + 1}.png"
-                    if os.path.exists(TEMP_SCREEN_FILE):
-                        os.replace(TEMP_SCREEN_FILE, green_screenshot_name)
-                        print(f"Сохранен постоянный скриншот: {green_screenshot_name}")
+            if has_green_area():
+                print("Найдена зеленая область!")
+                green_screenshot_name = f"2_green_found_run_{i + 1}.png"
+                if os.path.exists(TEMP_SCREEN_FILE):
+                    os.replace(TEMP_SCREEN_FILE, green_screenshot_name)
+                    print(f"Сохранен постоянный скриншот: {green_screenshot_name}")
 
-                    click(final_click[0], final_click[1])
-                    green_found = True
-                    break
-            
-            if green_found:
-                print(f"--- ЗАВЕРШЕНИЕ ВЫПОЛНЕНИЯ #{i + 1}/10 (найден зеленый фон) ---")
-                break # Выход из while True для текущего выполнения
-            
-            print("Точный поиск не дал результатов, скроллим и переходим к широкому поиску.")
+                click(final_click[0], final_click[1])
+                green_found = True
+                break # Выход из цикла поиска на экране
+
+            red_y = red_bottom_y()
+            if red_y is not None:
+                print(f"Найден красный фон. Нижняя граница Y={red_y}.")
+                red_found = True
+                break # Выход из цикла поиска на экране
+
+            # Если ничего не найдено, смещаемся вниз
+            print(f"Ничего не найдено, кликаем ниже по Y={current_y + click_step}")
+            current_y += click_step
+
+        # Обработка результатов поиска на экране
+        if green_found:
+            print(f"--- ЗАВЕРШЕНИЕ ВЫПОЛНЕНИЯ #{i + 1}/10 (найден зеленый фон) ---")
+            break # Выход из while True для текущего выполнения
+
+        if red_found:
             scroll_down()
-            is_in_fine_search_mode = False
+            is_in_fine_search_mode = True
+            # `current_y` будет пересчитан в начале следующей итерации `while True`
+            continue
+
+        # Если дошли до конца экрана и ничего не нашли
+        if not green_found and not red_found:
+            print("Поиск на текущем экране не дал результатов, скроллим.")
+            scroll_down()
+            is_in_fine_search_mode = False # Возвращаемся к широкому поиску
+            current_y = start_y # Сбрасываем Y на начальное значение
     
     print("Пауза 5 секунд перед следующим выполнением...")
     time.sleep(5)
